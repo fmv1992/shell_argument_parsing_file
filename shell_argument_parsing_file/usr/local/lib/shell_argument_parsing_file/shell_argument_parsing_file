@@ -1,0 +1,155 @@
+#! /usr/bin/env bash
+#
+# Parse CLI arguments defined in a recfile and put them in an associative
+# array.
+
+# Halt on error.
+set -euo pipefail
+
+function _find_length() {
+    local i=0
+    for element in $@; do
+        i=$((i + 1))
+    done
+    echo $i
+}
+
+function _associative_arrays_are_equal() {
+    declare -n a1="$1"
+    declare -n a2="$2"
+    # Keys are equal.
+    retvalue=0
+    if [[ $(printf '%s\n' ${!a1[@]} | sort -u) == $(printf '%s\n' ${!a2[@]} | sort -u) ]]; then
+        for k in $(printf '%s\n' ${!a1[@]} | sort -u); do
+            if [[ ${a1[$k]} != ${a2[$k]} ]]; then
+                retvalue=1
+                break
+            fi
+        done
+    else
+        retvalue=1
+    fi
+    { [[ $retvalue == 0 ]] && echo true; } || echo false
+    return $retvalue
+}
+
+function _print_array() {
+    declare -n __p="$1"
+    for k in $(printf '%s\n' ${!__p[@]} | sort -u); do
+        printf "%s=«%s»\n" "$k" "${__p[$k]}" || true
+    done
+}
+
+function shell_argument_parsing_file_help() {
+    echo '(not implemented)' >/dev/stderr
+}
+
+# ???: Associative arrays do not mix well with cli args that consume more than
+# one argument.
+#
+# ???: make everything `local`.
+function parse() {
+    # Validate arguments.
+    if [[ $# != 3 ]]; then
+        exit 1
+    fi
+
+    # Get arguments.
+    local recfile_cli_description="${1}"
+    declare -n arr="${2}"
+    local args_cli="${3}"
+
+    # ✂ --------------------------------------------------
+    # A POSIX variable
+    OPTIND=1 # Reset in case getopts has been used previously in the shell.
+
+    # ̶I̶̶̶n̶̶̶i̶̶̶t̶̶̶i̶̶̶a̶̶̶l̶̶̶i̶̶̶z̶̶̶e̶̶ ̶o̶̶̶u̶̶̶r̶̶ ̶o̶̶̶w̶̶̶n̶̶ ̶v̶̶̶a̶̶̶r̶̶̶i̶̶̶a̶̶̶b̶̶̶l̶̶̶e̶̶̶s̶̶̶:̶̶ → we cannot do that because a few variables
+    # might be conflicting with each other.
+    #
+    # We start by building the arguments to `getopt`:
+    # read -r opt_longform opt_shortform
+    #
+    # * `:`: required argument.
+    # * `::`: optional argument.
+    forms="$(
+        {
+            recsel --expression "get_n_arguments = '0'" $recfile_cli_description \
+                | recfmt '{{longform}},{{shortform}}'
+            recsel --expression "get_n_arguments > '0'" $recfile_cli_description \
+                | recfmt '{{longform}}:,{{shortform}}:'
+        } \
+            | tr '' '\n' \
+            | python3 -c '
+import sys
+from csv import reader, writer
+
+
+def main():
+    lines = sys.stdin.read().splitlines()
+    lines_spl = [x.split(",") for x in lines]
+    print("\n".join(map(lambda x: ",".join(x), zip(*lines_spl))))
+
+
+if __name__ == "__main__":
+    main()
+    '
+    )"
+    opt_longform=$(head -n 1 <<< "$forms")
+    opt_shortform=$(tail -n 1 <<< "$forms")
+
+    # Read:
+    # <https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap12.html#tag_12_02>.
+
+    # <https://stackoverflow.com/a/14787208/5544140>.
+    args=$(getopt -l "${opt_longform}" -o "${opt_shortform}" -- ${args_cli})
+    args_as_array=($args)
+    args_len=$(_find_length "${args}")
+
+    i=0
+    while [[ $i -lt $args_len ]]; do
+        arg_as_key=${args_as_array[$i]}
+        if [[ $arg_as_key == '--' ]]; then
+            i=$((i + 1))
+            rest_n=0
+            while [[ $i -lt $args_len ]]; do
+                key="rest${rest_n}"
+                value=${args_as_array[$i]}
+                i=$((i + 1))
+                rest_n=$((rest_n + 1))
+                arr["$key"]="${value}"
+            done
+            arr['rest_n']="${rest_n}"
+            continue
+        elif [[ $arg_as_key =~ ^--.* ]]; then
+            arg_as_key=${arg_as_key#"--"}
+            n=$(recsel --expression "longform = '$arg_as_key'" $recfile_cli_description --print-values 'get_n_arguments')
+        elif [[ $arg_as_key =~ ^-.* ]]; then
+            arg_as_key=${arg_as_key#-}
+            n=$(recsel --expression "shortform = '$arg_as_key'" $recfile_cli_description --print-values 'get_n_arguments')
+        fi
+        value=''
+        if [[ $n == 0 ]]; then
+            # If this is set to `''` then the behavior of getting it is weird.
+            value='true'
+        elif [[ $n == 1 ]]; then
+            i=$((i + 1))
+            if [[ ! ($i -lt $args_len) ]]; then
+                break
+            fi
+            value=${args_as_array[$i]}
+        else
+            echo "n > 1 not supported (it was \`$n\`)." > /dev/stderr
+            exit 1
+        fi
+        arr["$arg_as_key"]="${value}"
+        i=$((i + 1))
+    done
+
+    shift $((OPTIND - 1))
+
+    { [[ ${2:-} == "--" ]] && shift || true; }
+
+    # -------------------------------------------------- ✂
+}
+
+# vim: set filetype=sh fileformat=unix nowrap:
