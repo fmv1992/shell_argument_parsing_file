@@ -106,6 +106,10 @@ https://stackoverflow.com/questions/45740459/what-does-local-mean
 
 https://refspecs.linuxfoundation.org/FHS_3.0/fhs/ch04s09.html#usrlocalshare1
 
+### Related projects
+
+*   [`fmv1992_cookiecutter_shell`](https://github.com/fmv1992/fmv1992_cookiecutter_shell).
+
 <!--  -->
 
 <!-- https://pandoc.org/chunkedhtml-demo/8.16-links-1.html -->

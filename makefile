@@ -1,6 +1,11 @@
 SHELL := /bin/bash -euo pipefail
-export ROOT_DIR ?= $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
+export ROOT_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 export REFERENCE_DIR ?= $(ROOT_DIR)/shell_argument_parsing_file
+
+export PROJECT ?= shell_argument_parsing_file_test
+
+export USER_UID := $(shell id -u)
+export USER_GID := $(shell id -g)
 
 REC_FILES := $(shell find . -iname '*.rec')
 
@@ -11,7 +16,7 @@ TEMPLATED_FILES := $(patsubst %.jinja,%,$(shell find . -iname '*.jinja'))
 
 IS_PACKAGING ?= false
 
-all: $(TEMPLATED_FILES) check_recutils test
+all: $(TEMPLATED_FILES) check_recutils package test
 
 check_recutils: $(REC_FILES)
 	echo $(REC_FILES) | xargs -n 1 -- recfix --check --
@@ -47,14 +52,19 @@ release:
 	sort -u <(find . -iname '*.deb' | one | xargs -- sha512sum) <(cat ./other/package/releases.md5) | sponge ./other/package/releases.md5
 	gpg2 --yes --batch --clearsign --local-user felipev@telnyx.com -- ./other/package/releases.md5
 
-.FORCE:
+# Formatting section. --- {{{
+
+format: format_yaml format_json
+
+format_yaml:
+	find $(ROOT_DIR) \( -iname '*.yml' -o -iname '*.yaml' -o -iname '.yamlfmt' \) -type f -print0 | xargs -0 -n 100 -- yamlfmt
+
+format_json:
+	find . -iname '*.json' -print0 | parallel --null --max-args 1 -- 'python3 -m json.tool --sort-keys {} > /tmp/$(PROJECT)_{}_ {}'
+
+#  --- }}}
 
 # `docker` section. --- {{{
-
-export PROJECT ?= shell_argument_parsing_file_test
-
-export USER_UID := $(shell id -u)
-export USER_GID := $(shell id -g)
 
 DOCKER_COMPOSE_FILE := ./compose.yaml
 
@@ -73,7 +83,7 @@ endif
 test_docker: build .FORCE
 	DOCKER_CMD_RUN='/usr/local/bin/docker_test' make docker_run
 
-build: .FORCE
+build: readme.md .FORCE
 	docker-compose --file $(DOCKER_COMPOSE_FILE) build $(DOCKER_BUILD_ARGS)
 
 docker_run:
@@ -89,6 +99,8 @@ down:
 	docker-compose --file $(DOCKER_COMPOSE_FILE) down --remove-orphans
 
 #  --- }}}
+
+# "Specifics" section. --- {{{
 
 %: %.jinja
 	jinja \
@@ -106,3 +118,10 @@ readme.md: readme.md.jinja docs/manpage.md.clean
 
 docs/manpage.md.clean: docs/manpage.md
 	pandoc2 --strip-comments --shift-heading-level-by 2 --from markdown --to markdown_github $< | sponge $@
+
+#  --- }}}
+
+
+.FORCE:
+
+# vim: set filetype=make fileformat=unix nowrap spell spelllang=en :
