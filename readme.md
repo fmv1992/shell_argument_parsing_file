@@ -110,6 +110,8 @@ https://refspecs.linuxfoundation.org/FHS_3.0/fhs/ch04s09.html#usrlocalshare1
 
 *   [`fmv1992_cookiecutter_shell`](https://github.com/fmv1992/fmv1992_cookiecutter_shell).
 
+*   [`git_delete_stale_branches`](???): it uses `shell_argument_parsing_file`.
+
 <!--  -->
 
 <!-- https://pandoc.org/chunkedhtml-demo/8.16-links-1.html -->
