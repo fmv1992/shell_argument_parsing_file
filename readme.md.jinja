@@ -31,6 +31,8 @@ make package down build test
 
 ### This project
 
+*   Put an array at the associative array index for multi value arguments.
+
 *   Fix `Section: checkinstall` in `.deb`.
 
 *   Integrate `shell_argument_parsing_file/usr/local/share/shell_argument_parsing_file/recfiles/shell_argument_parsing_file_metadata.rec` with `help`.
@@ -43,7 +45,7 @@ make package down build test
 
 ### Related to this project
 
-*   Use `recfiles` to define depts. Its metadata capabilities are outstanding.
+*   Use `recfiles` to define deps. Its metadata capabilities are outstanding.
 
 *   [DRY principle](https://en.wikipedia.org/wiki/Don%27t_repeat_yourself): install jira templates from rec files, define parameters from recfiles, etc. e.g. `if [[ $# != 3 ]]; then` the `3` is hardcoded there.
 
